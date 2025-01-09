@@ -2832,7 +2832,7 @@ CONTAINS
 
     !------------ DEALLOCATIONS ------------------
 
-    DEALLOCATE(OnEdge, UnorderedNodeNums, GlobalCorners, CornerParts, PCornerCounts, OrderedNodeNums)
+    DEALLOCATE(OnEdge, UnorderedNodeNums, GlobalCorners, CornerParts, PCornerCounts)
 
     IF(Boss .AND. Parallel) THEN !Deallocations
        DEALLOCATE(UnorderedNodes % x, &
@@ -2845,7 +2845,7 @@ CONTAINS
             OrderedGlobalNodeNums)
     END IF
 
-    IF(.NOT. Boss) DEALLOCATE(UnorderedNodes % x, UnorderedNodes % y, UnorderedNodes % z)
+    !IF(.NOT. Boss) DEALLOCATE(UnorderedNodes % x, UnorderedNodes % y, UnorderedNodes % z)
 
   END SUBROUTINE GetDomainEdge
 
