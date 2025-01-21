@@ -223,6 +223,8 @@
     IF(CrevPenetration > 1 .OR. CrevPenetration < 0) CALL FATAL(SolverName, "Crevasse Penetraion must be between 0-1")
    END IF
 
+   FullThickness = CrevPenetration == 1.0_dp
+
    CalvingOccurs = .FALSE.
 
    Mesh => Model % Mesh
@@ -232,12 +234,6 @@
    LatCalvMargins = ListGetLogical(Params,"Lateral Calving Margins", DefValue=.TRUE.)
 
    MaxMeshDist = ListGetConstReal(Params, "Calving Search Distance",Found, UnfoundFatal=.TRUE.)
-
-   CrevPenetration = ListGetConstReal(Params, "Crevasse Penetration",Found, DefValue = 1.0_dp)
-   IF(.NOT. Found) CALL Info(SolverName, "No Crevasse Penetration specified so assuming full thickness")
-   FullThickness = CrevPenetration == 1.0_dp
-   PRINT*, 'CrevPenetration: ', CrevPenetration
-   IF(CrevPenetration > 1 .OR. CrevPenetration < 0) CALL FATAL(SolverName, "Crevasse Penetraion must be between 0-1")
 
    DistVar => VariableGet(Model % Variables, DistVarName, .TRUE., UnfoundFatal=.TRUE.)
    DistValues => DistVar % Values
