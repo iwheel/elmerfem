@@ -6456,7 +6456,7 @@ CONTAINS
           Orientation(2)=-1.0_dp
         END IF
       ELSE
-        CALL ComputePathExtent(CrevassePaths, Mesh % Nodes, .TRUE.)
+        CALL ComputePathExtent(CurrentPath, Mesh % Nodes, .TRUE.)
         ! endx always greater than startx
         ! check if yextent min smaller than starty
 
@@ -6786,8 +6786,8 @@ CONTAINS
               intersect_z = gradient * yy + c
             END IF
             InRange(i-1) = .TRUE. ! found
-            IF(zz - err_buffer <= intersect_z) THEN
-              IF(zz + err_buffer >= intersect_z) THEN
+            IF(ABS(zz - err_buffer) <= intersect_z) THEN
+              IF(ABS(zz + err_buffer) >= intersect_z) THEN
                 IsBelow(i-1) = 1 !in same position as edge
               ELSE
                 IsBelow(i-1) = 2 ! below edge
