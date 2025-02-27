@@ -1149,17 +1149,6 @@ SUBROUTINE CalvingRemeshMMG( Model, Solver, dt, Transient )
           CALL Fatal(SolverName, 'Bad GID 0')
    END DO
 
-   ParEnv % IsNeighbour(:)  = .FALSE.
-   DO i=1, Mesh % NumberOfNodes
-     IF ( ASSOCIATED(Mesh % ParallelInfo % NeighbourList(i) % Neighbours) ) THEN
-       DO j=1,SIZE(Mesh % ParallelInfo % NeighbourList(i) % Neighbours)
-         proc = Mesh % ParallelInfo % NeighbourList(i) % Neighbours(j)
-         IF ( ParEnv % Active(proc+1).AND.proc/=ParEnv % MYpe) &
-             ParEnv % IsNeighbour(proc+1) = .TRUE.
-       END DO
-     END IF
-   END DO
-
    IF(SaveTerminus) THEN
       IF(RemeshFront) THEN ! got entire front
         CALL SaveTerminusPosition(Model, Solver, GatheredMesh, ImBoss)

@@ -1511,26 +1511,6 @@
             END IF
           END IF
        END IF
-
-       NodeHolder(3)=0.0_dp
-       DO i=1,NoPaths
-          NodeHolder(1) = CrevX(CrevStart(i))
-          NodeHolder(2) = CrevY(CrevStart(i))
-          NodeHolder = MATMUL(RotationMatrix, NodeHolder)
-          y_coord(1) = NodeHolder(2)
-          NodeHolder(1) = CrevX(CrevEnd(i))
-          NodeHolder(2) = CrevY(CrevEnd(i))
-          ! NodeHolder(3) = FrontNodes % z(FrontLineCount)
-          !TODO - Ask Eef about this ---^
-          NodeHolder = MATMUL(RotationMatrix, NodeHolder)
-          y_coord(2) = NodeHolder(2)
-          LeftToRight = y_coord(2) > y_coord(1) ! TODO check if this doesn't break for special cases
-          IF(LeftToRight) THEN
-             CrevX(CrevStart(i):CrevEnd(i))=CrevX(CrevEnd(i):CrevStart(i):-1)
-             CrevY(CrevStart(i):CrevEnd(i))=CrevY(CrevEnd(i):CrevStart(i):-1)
-          END IF
-       END DO
-       IF (Debug) Print *, CrevX
      END IF
 
 
