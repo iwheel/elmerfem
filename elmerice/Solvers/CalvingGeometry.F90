@@ -3493,16 +3493,19 @@ CONTAINS
     TYPE(Matrix_t), POINTER :: WorkMatrix=>NULL()
     LOGICAL :: Found, Global, GlobalBubbles, Debug, DoPrevValues, &
          NoMatrix, DoOptimizeBandwidth, PrimaryVar, HasValuesInPartition, &
-         PrimarySolver,CreatedParMatrix
+         PrimarySolver,HasParEnv
     LOGICAL, POINTER :: UnfoundNodes(:)=>NULL(), BulkUnfoundNodes(:)=>NULL()
-    INTEGER :: i,j,k,DOFs, nrows,n, dummyint, ierr
+    INTEGER :: i,j,k,DOFs, nrows,n, dummyint, ierr, counter, group_world, group_active, COMM_ACTIVE
     INTEGER, POINTER :: WorkPerm(:)=>NULL(), SolversToIgnore(:)=>NULL(), &
          SurfaceMaskPerm(:)=>NULL(), BottomMaskPerm(:)=>NULL()
+    INTEGER, ALLOCATABLE :: group_members(:)
     REAL(KIND=dp), POINTER :: WorkReal(:)=>NULL(), WorkReal2(:)=>NULL(), PArray(:,:) => NULL()
     REAL(KIND=dp) :: FrontOrientation(3), RotationMatrix(3,3), UnRotationMatrix(3,3), &
          globaleps, localeps
     LOGICAL, ALLOCATABLE :: PartActive(:)
     CHARACTER(LEN=MAX_NAME_LEN) :: SolverName, WorkName
+    TYPE(ParEnv_t), POINTER :: ParEnvSave
+    TYPE (SParIterSolverGlobalD_t), POINTER :: SParMatrixDesc
 
     INTERFACE
        SUBROUTINE InterpolateMeshToMesh( OldMesh, NewMesh, OldVariables, &
@@ -3530,6 +3533,22 @@ CONTAINS
     CALL Info( 'Remesher', ' Switching from old to new mesh...',Level=4 )
     CALL Info( 'Remesher', '-------------------------------------',Level=4 )
     CALL Info( 'Remesher', ' ',Level=4 )
+
+    HasParEnv = ASSOCIATED(Solver % Matrix)
+    IF(HasParEnv) HasParEnv = ASSOCIATED(Solver % Matrix % ParMatrix)
+
+    IF(.NOT. HasParEnv) THEN
+      ALLOCATE( SParMatrixDesc )
+
+      SParMatrixDesc % ParEnv = ParEnv
+      ALLOCATE(SParMatrixDesc % ParEnv % Active(ParEnv % PEs))
+      SParMatrixDesc % ParEnv % Active = ParEnv % Active
+      ! do we need more info? don't think so... only affects this solver
+      SParMatrixDesc % ParEnv % IsNeighbour => Null()
+      ParEnv => SParMatrixDesc % ParEnv
+    END IF
+
+    ParEnvSave => ParEnv
 
     IF(ASSOCIATED(NewMesh % Variables)) CALL Fatal(SolverName,&
          "New mesh already has variables associated!")
@@ -3562,7 +3581,6 @@ CONTAINS
     Var => OldMesh % Variables
 
     ALLOCATE(PartActive(ParEnv % PEs))
-    CreatedParMatrix = .FALSE.
 
     DO WHILE( ASSOCIATED(Var) )
 
@@ -3642,9 +3660,6 @@ CONTAINS
                 END IF
              END IF
 
-             IF(.NOT. CreatedParMatrix) &
-              CALL MPI_AllGather(.NOT. NoMatrix, 1, MPI_LOGICAL, PartActive, 1, MPI_LOGICAL, ELMER_COMM_WORLD, ierr)
-
              IF ( ASSOCIATED(Var % EigenValues) ) THEN
                 n = SIZE(Var % EigenValues)
 
@@ -3661,6 +3676,12 @@ CONTAINS
                       WorkMatrix % MassValues = 0.0d0
                    END IF
                 END IF
+             END IF
+
+             ! destroy old mpi comm
+             IF((ASSOCIATED(WorkSolver % Matrix))) THEN
+                IF(WorkSolver % Matrix % Comm /= ELMER_COMM_WORLD .AND. WorkSolver % Matrix % Comm /= MPI_COMM_NULL ) &
+                  CALL MPI_COMM_FREE(WorkSolver % Matrix % Comm,ierr)
              END IF
 
              !Check for duplicate solvers with same var
@@ -3688,18 +3709,53 @@ CONTAINS
              IF(ASSOCIATED(WorkSolver % Matrix)) CALL FreeMatrix(WorkSolver % Matrix)
              WorkSolver % Matrix => WorkMatrix
 
-             ! bit of a hack
-             ! since ParEnv become a pointer to ParMatrix we need to ensure one ParMatrix is formed
-             ! it needs to be from a solver present on all parts hence the all gather further up.
-             ! it seems we only need to this once per timestep/interpolation as ParEnv will have some thing
-             ! to point to. If we don't do this ParEnv % PEs, % MyPE etc. all become nans mucking eveything up!
-             IF ( ASSOCIATED(WorkSolver % Matrix) .and. ALL(PartActive) .and. .NOT. CreatedParMatrix) THEN
+             ! now updated (27/2/25) so that a mpi_comm and group is created for each matrix
+             ! required now since ParEnv => Solver % Matrix % ParMatrix % ParEnv
+             ! If this solver has no matrix a dummy ParEnv is created so the original ParEnv
+             ! can be restored
+             CALL MPI_AllGather(.NOT. NoMatrix, 1, MPI_LOGICAL, PartActive, 1, MPI_LOGICAL, ELMER_COMM_WORLD, ierr)
+             n = COUNT(PartActive)
+
+             IF(n < ParEnv % PEs) THEN !solver matrix not present on all procs
+
+                CALL ParallelActive(.NOT. NoMatrix)
+                ALLOCATE(group_members(n))
+                counter = 0
+                DO i=1,ParEnv % PEs
+                  IF(ParEnv % Active(i)) THEN
+                    counter = counter + 1
+                    group_members(counter) = i-1
+                  END IF
+                END DO
+
+                CALL MPI_Comm_Group( ELMER_COMM_WORLD, group_world, ierr)
+                CALL MPI_Group_Incl( group_world, n, group_members, group_active, ierr)
+                CALL MPI_Comm_create( ELMER_COMM_WORLD, group_active, COMM_ACTIVE, ierr)
+
+                IF ( .NOT. NoMatrix) THEN
+                  WorkSolver % Matrix % Comm = COMM_ACTIVE
+                  ParEnv % ActiveComm = WorkSolver % Matrix % Comm
+                END IF
+
+                DEALLOCATE(group_members)
+             END IF
+
+             !create ParMatrix and associated parenv
+             IF ( .NOT. NoMatrix) THEN
                 IF (.NOT. ASSOCIATED(WorkSolver % Matrix % ParMatrix) ) THEN
                   WorkSolver % Mesh => NewMesh
 
                   CALL ParallelInitMatrix( WorkSolver, WorkSolver % Matrix, WorkPerm)
-                  CreatedParMatrix = .TRUE.
+
+                  ! point ParEnv back to this solver
+                  ParEnv => ParEnvSave
                 END IF
+             END IF
+
+             IF(n < ParEnv % PEs) THEN
+                !assume we have all parts since we are switching meshes
+                ParEnv % ActiveComm = ELMER_COMM_WORLD
+                CALL ParallelActive(.TRUE.)
              END IF
 
              NULLIFY(WorkMatrix)
