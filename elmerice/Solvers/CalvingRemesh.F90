@@ -2966,7 +2966,7 @@ CONTAINS
     ! this commented out Jan 25. We need to keep solver matrix otherwise
     ! we lose ParEnv since it now => Matrix % ParMatrix % ParEnv
     ! else switch mesh won't do it's name
-    !CALL FreeMatrix(Solver % Matrix)
+    CALL FreeMatrix(Solver % Matrix)
 
     !---------------------------------------------------------------
 

@@ -3540,6 +3540,16 @@ CONTAINS
     IF(.NOT. HasParEnv) THEN
       ALLOCATE( SParMatrixDesc )
 
+      ! we can't trush CalvingRemesh to provide accurate ParEnv info (PEs)
+      DO i=1, Model % NumberOfSolvers
+        WorkSolver => Model % Solvers(i)
+        IF(ASSOCIATED(WorkSolver % Matrix)) THEN
+          IF(ASSOCIATED(WorkSolver % Matrix % ParMatrix)) &
+            ParEnv => WorkSolver % Matrix % ParMatrix % ParEnv
+        END IF
+      END DO
+      NULLIFY(WorkSolver)
+
       SParMatrixDesc % ParEnv = ParEnv
       ALLOCATE(SParMatrixDesc % ParEnv % Active(ParEnv % PEs))
       SParMatrixDesc % ParEnv % Active = ParEnv % Active
@@ -3548,6 +3558,8 @@ CONTAINS
       ParEnv => SParMatrixDesc % ParEnv
     END IF
 
+    !assume all parts active since we may be pointing to another solvers parenv
+    CALL ParallelActive(.TRUE.)
     ParEnvSave => ParEnv
 
     IF(ASSOCIATED(NewMesh % Variables)) CALL Fatal(SolverName,&
