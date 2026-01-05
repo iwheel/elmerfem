@@ -118,9 +118,7 @@ SUBROUTINE CalvingRemeshMMG( Model, Solver, dt, Transient )
   MyPe = ParEnv % MyPE
   PEs = ParEnv % PEs
 
-#if MMG_VERSION_LT(5,6)
-  PRINT*, SolverName, ': Starting MMG'
-#elif MMG_VERSION_LT(5,8)
+#if MMG_VERSION_LE(5,8)
   PRINT*, SolverName, ': Starting MMG'
 #else
   CALL FATAL(SolverName, 'Calving code only works with MMG 5.5')
